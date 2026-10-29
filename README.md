@@ -11,8 +11,6 @@ Diagrama de Gantt **ligero, standalone y sin dependencias de UI** para Angular (
 - Textos traducibles (español por defecto, inglés incluido) y tema 100 % personalizable con variables CSS.
 - Sin Bootstrap, sin librerías de iconos y sin servicios: solo `@angular/core` y `@angular/common`.
 
-![Tema claro por defecto y tema oscuro con variables CSS](docs/preview.png)
-
 ## Índice
 
 1. [Instalación](#instalación)
