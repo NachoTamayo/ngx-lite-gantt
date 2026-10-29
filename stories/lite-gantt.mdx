@@ -1,0 +1,100 @@
+import { Meta, Canvas, Controls, Stories } from '@storybook/addon-docs/blocks';
+import * as GanttStories from './lite-gantt.stories';
+
+<Meta of={GanttStories} name="Documentación" />
+
+# Gantt (`lite-gantt`)
+
+Diagrama de Gantt standalone para planificar **tareas** y sus **operaciones**, con barras planificada,
+real, prevista y de avance, dependencias, eventos puntuales y línea de hoy. No depende de ninguna
+librería de UI: el aspecto se controla con variables CSS `--lgantt-*` y los textos con la entrada `labels`.
+
+<Canvas of={GanttStories.PorDefecto} />
+
+## Cuándo usarlo
+
+- Seguimiento de un plan de días o semanas con desviaciones respecto a la planificación.
+- Visualizar dependencias entre tareas y eventos relevantes (hitos, incidencias, cambios).
+
+No está pensado para editar fechas arrastrando ni para escalas por horas o por meses.
+
+## Uso
+
+```ts
+import { GanttTask, LiteGanttComponent } from 'ngx-lite-gantt';
+
+@Component({
+  standalone: true,
+  imports: [LiteGanttComponent],
+  template: `
+    <lite-gantt [tasks]="tasks" [start]="start" [end]="end"
+                [nonWorkingWeekdays]="[0, 6]"
+                [(selectedId)]="selected"
+                (taskClick)="abrir($event)" />
+  `,
+})
+export class PlanComponent { /* … */ }
+```
+
+`start` y `end` son obligatorias. El componente es `OnPush`: sustituye los arrays en lugar de mutarlos.
+
+## Propiedades
+
+<Controls of={GanttStories.PorDefecto} />
+
+## Lectura del diagrama
+
+| Elemento | Significado |
+|---|---|
+| Línea discontinua superior | Plan de referencia (`planned`). |
+| Barra verde | Tarea finalizada, dibujada con su intervalo real (`actual`). |
+| Barra azul suave + azul intenso | Tarea en curso: previsión y parte ya ejecutada (o porcentaje de `progress`). |
+| Barra naranja discontinua | Previsión retrasada respecto al plan; a la derecha, `+N d` en días laborables. |
+| Flecha gris | Dependencia (`dependsOn`). |
+| Círculo | Evento puntual (`events`); clic o Enter emite `eventClick`. |
+| Línea roja vertical | Instante `today`. |
+
+## Tema
+
+Declara las variables en `:root`, en un contenedor o en el propio `<lite-gantt>`:
+
+```scss
+lite-gantt {
+  --lgantt-font: inherit;
+  --lgantt-running: var(--color-primary);
+  --lgantt-finished: var(--color-success);
+  --lgantt-today: var(--color-danger);
+}
+```
+
+<Canvas of={GanttStories.TemaOscuro} />
+
+La lista completa de variables está en el README del repositorio.
+
+## Textos e idioma
+
+Los textos por defecto están en español. `GANTT_LABELS_EN` contiene la traducción al inglés y
+cualquier clave puede sobrescribirse por separado:
+
+```html
+<lite-gantt [labels]="{ task: 'Actividad', status: { running: 'En ejecución' } }" … />
+```
+
+<Canvas of={GanttStories.EnIngles} />
+
+## Enfocar un evento desde fuera
+
+`focusEvent(eventId, taskId?)` desplaza el diagrama hasta el marcador, lo enfoca y lo resalta.
+Devuelve `false` si el evento no está dibujado.
+
+<Canvas of={GanttStories.EnfocarEvento} />
+
+## Accesibilidad
+
+- Filas, barras y eventos son operables con teclado (Tab, Enter y Espacio).
+- Los tooltips aparecen también con el foco, y su contenido forma el nombre accesible del elemento.
+- La animación de resaltado respeta `prefers-reduced-motion`.
+
+## Todas las variantes
+
+<Stories />

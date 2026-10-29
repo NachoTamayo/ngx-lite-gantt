@@ -1,0 +1,156 @@
+<div class="lgantt">
+  <div class="lgantt__toolbar">
+    <div class="lgantt__btn-group" role="group" [attr.aria-label]="l.toolbar.zoom">
+      <button type="button" class="lgantt__btn"
+              [class.lgantt__btn--active]="zoom === 'day'" [attr.aria-pressed]="zoom === 'day'"
+              (click)="setZoom('day')">{{ l.toolbar.day }}</button>
+      <button type="button" class="lgantt__btn"
+              [class.lgantt__btn--active]="zoom === 'compact'" [attr.aria-pressed]="zoom === 'compact'"
+              (click)="setZoom('compact')">{{ l.toolbar.compact }}</button>
+    </div>
+    <button type="button" class="lgantt__btn" (click)="scrollToToday()" [disabled]="todayLeft === null">
+      <svg class="lgantt__icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
+        <rect x="1.5" y="2.5" width="13" height="12" rx="1.5" fill="none" stroke="currentColor" />
+        <path d="M1.5 6h13M5 1v3M11 1v3" fill="none" stroke="currentColor" />
+        <rect x="9.5" y="9" width="3" height="3" rx=".5" fill="currentColor" />
+      </svg>
+      {{ l.toolbar.goToToday }}
+    </button>
+    <ng-content select="[ganttToolbar]"></ng-content>
+  </div>
+
+  <div #scroller class="lgantt__scroll" [style.max-height.px]="maxHeight" tabindex="0"
+       role="region" [attr.aria-label]="l.region">
+    <div class="lgantt__inner" [style.--lgantt-dw.px]="dayWidth" [style.--lgantt-tlw.px]="timelineWidth"
+         [style.--lgantt-left.px]="leftWidth">
+
+      <!-- Fondo del cuerpo: no laborables y líneas de semana a todo el alto, por debajo de las filas. -->
+      <div class="lgantt__bg" aria-hidden="true" [style.left.px]="leftWidth" [style.top.px]="headerHeight">
+        @for (day of days; track day.date.getTime()) {
+          <span class="lgantt__bg-day"
+                [class.lgantt__bg-day--nw]="day.nonWorking" [class.lgantt__bg-day--week]="day.weekStart"></span>
+        }
+      </div>
+
+      <div class="lgantt__row lgantt__row--head" role="row">
+        <div class="lgantt__cell lgantt__c1">{{ l.task }}</div>
+        <div class="lgantt__scale">
+          <div class="lgantt__weeks">
+            @for (week of weeks; track $index) {
+              <span class="lgantt__week" [style.width.px]="week.days * dayWidth">{{ week.label }}</span>
+            }
+          </div>
+          <div class="lgantt__days">
+            @for (day of days; track day.date.getTime()) {
+              <div class="lgantt__day" [class.lgantt__day--nw]="day.nonWorking"
+                   [class.lgantt__day--week]="day.weekStart" [class.lgantt__day--today]="day.today">
+                <span class="lgantt__day-label" [attr.title]="day.today ? todayLabel : null">
+                  {{ dayWidth > 60 ? day.label : day.shortLabel }}
+                </span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      @for (row of rows; track row.task.id) {
+        <div class="lgantt__row"
+             [class.lgantt__row--task]="row.task.type === 'task'" [class.lgantt__row--op]="row.task.type === 'operation'"
+             [class.lgantt__row--selected]="row.task.id === selectedId"
+             role="row" tabindex="-1" (click)="select(row)" (keydown.enter)="select(row)">
+          <div class="lgantt__cell lgantt__c1" role="button" tabindex="0"
+               [attr.aria-pressed]="row.task.id === selectedId"
+               (keydown.enter)="onSelectKey(row, $event)" (keydown.space)="onSelectKey(row, $event)">
+            <span class="lgantt__line">
+              @if (row.task.warning) {
+                <svg class="lgantt__icon lgantt__icon--warn" viewBox="0 0 16 16" width="16" height="16"
+                     role="img" [attr.aria-label]="l.warning">
+                  <path d="M8 1.2 15.2 14H.8L8 1.2Z" fill="currentColor" />
+                  <path class="lgantt__icon-mark" d="M8 6v4M8 11.5v1" />
+                </svg>
+              }
+              <span class="lgantt__code">{{ row.task.code ?? row.task.id }}</span>
+              <span class="lgantt__tag" [ngClass]="'lgantt__tag--' + row.task.status">{{ l.status[row.task.status] }}</span>
+              @if (row.task.critical) {
+                <span class="lgantt__tag lgantt__tag--critical">{{ l.critical }}</span>
+              }
+            </span>
+            <span class="lgantt__desc" [attr.title]="row.task.name">
+              {{ row.task.name }}@if (row.task.team) { · {{ row.task.team }} }
+            </span>
+          </div>
+
+          <div class="lgantt__tl" [ngClass]="'lgantt__tl--' + row.task.type">
+            <div class="lgantt__bar lgantt__bar--plan" [style.left.px]="row.planned.left" [style.width.px]="row.planned.width"></div>
+
+            <div class="lgantt__bar lgantt__bar--main" [ngClass]="'lgantt__bar--' + row.mainKind"
+                 [style.left.px]="row.main.left" [style.width.px]="row.main.width"
+                 role="button" tabindex="0"
+                 [attr.aria-label]="row.tooltip.join('. ')"
+                 (mouseenter)="showTooltip(row, $event)" (mouseleave)="hideTooltip()"
+                 (focus)="showTooltip(row, $event)" (blur)="hideTooltip()"
+                 (click)="onActivate(row, $event)"
+                 (keydown.enter)="onActivate(row, $event)" (keydown.space)="onActivate(row, $event)">
+              @if (!row.progress) { {{ row.progressLabel }} }
+            </div>
+            @if (row.progress) {
+              <div class="lgantt__bar lgantt__bar--progress"
+                   [style.left.px]="row.progress.left" [style.width.px]="row.progress.width">{{ row.progressLabel }}</div>
+            }
+
+            @if (row.deviation) {
+              <div class="lgantt__dev" [style.left.px]="row.main.left + row.main.width + 6">
+                {{ row.deviation }}@if (row.task.note) { · {{ row.task.note }} }
+              </div>
+            }
+
+            @for (marker of row.events; track marker.event.id) {
+              <button type="button" class="lgantt__event"
+                      [style.left.px]="marker.center - 11" [style.background]="marker.event.color ?? null"
+                      [attr.data-event-id]="marker.event.id" [attr.data-task-id]="row.task.id"
+                      [attr.aria-label]="(row.task.code ?? row.task.id) + ': ' + marker.tooltip"
+                      (mouseenter)="showTooltip(marker, $event)" (mouseleave)="hideTooltip()"
+                      (focus)="showTooltip(marker, $event)" (blur)="hideTooltip()"
+                      (click)="onActivateEvent(row, marker, $event)">
+                @if (marker.event.icon) {
+                  <img [src]="marker.event.icon" width="14" height="14" alt="" />
+                } @else if (marker.event.iconClass) {
+                  <i class="lgantt__event-icon" [ngClass]="marker.event.iconClass" aria-hidden="true"></i>
+                }
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (todayLeft !== null) {
+        <div class="lgantt__today" [style.left.px]="leftWidth + todayLeft - 1"></div>
+      }
+
+      <svg class="lgantt__deps" [attr.width]="leftWidth + timelineWidth" [attr.height]="totalHeight" aria-hidden="true">
+        @for (dependency of dependencies; track dependency.from + '>' + dependency.to) {
+          <g>
+            <path [attr.d]="dependency.path" />
+            <polygon [attr.points]="dependency.arrow" />
+          </g>
+        }
+      </svg>
+    </div>
+  </div>
+
+  <div class="lgantt__legend">
+    <span><i class="lgantt__sw lgantt__sw--plan"></i>{{ l.legend.planned }}</span>
+    <span><i class="lgantt__sw lgantt__sw--finished"></i>{{ l.legend.finished }}</span>
+    <span><i class="lgantt__sw lgantt__sw--running"></i>{{ l.legend.running }}</span>
+    <span><i class="lgantt__sw lgantt__sw--delayed"></i>{{ l.legend.delayed }}</span>
+    <span><i class="lgantt__sw lgantt__sw--dep"></i>{{ l.legend.dependency }}</span>
+  </div>
+
+  @if (tooltip) {
+    <div class="lgantt__tooltip" role="tooltip" [style.left.px]="tooltip.x" [style.top.px]="tooltip.y">
+      @for (line of tooltip.lines; track $index) {
+        <div [class.lgantt__tooltip-title]="$first">{{ line }}</div>
+      }
+    </div>
+  }
+</div>

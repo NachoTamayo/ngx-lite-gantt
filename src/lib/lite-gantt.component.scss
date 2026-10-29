@@ -1,0 +1,458 @@
+:host {
+  display: block;
+}
+
+// Las medidas de `gantt-layout.ts` asumen border-box, sin depender de un reset global.
+.lgantt,
+.lgantt *,
+.lgantt *::before,
+.lgantt *::after {
+  box-sizing: border-box;
+}
+
+// API de tema: cada variable privada `--_x` lee la pública `--lgantt-x` con un valor por defecto.
+// Las públicas se pueden declarar en `:root`, en un contenedor o en el propio `<lite-gantt>`;
+// se leen aquí, en el elemento interno, para que ganen a cualquier declaración del host.
+.lgantt {
+  --_font: var(--lgantt-font, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif);
+  --_font-size: var(--lgantt-font-size, 14px);
+  --_radius: var(--lgantt-radius, 4px);
+  --_bar-radius: var(--lgantt-bar-radius, 3px);
+  --_fg: var(--lgantt-fg, #1f2933);
+  --_muted: var(--lgantt-muted, #616e7c);
+  --_subtle: var(--lgantt-subtle, var(--_muted));
+  --_surface: var(--lgantt-surface, #ffffff);
+  --_alt: var(--lgantt-alt, #f7f9fb);
+  --_head: var(--lgantt-head, #f1f4f8);
+  --_line: var(--lgantt-line, #d9e0e8);
+  --_week-line: var(--lgantt-week-line, var(--_line));
+  --_row-line: var(--lgantt-row-line, var(--_line));
+  --_nonwork: var(--lgantt-nonwork, #f2f4f7);
+  --_nonwork-fg: var(--lgantt-nonwork-fg, var(--_muted));
+  --_on-accent: var(--lgantt-on-accent, #ffffff);
+  --_finished: var(--lgantt-finished, #2e7d32);
+  --_running: var(--lgantt-running, #1565c0);
+  --_running-soft: var(--lgantt-running-soft, #cfe3fa);
+  --_idle: var(--lgantt-idle, #e3e8ee);
+  --_plan: var(--lgantt-plan, #7b8794);
+  --_delay-bg: var(--lgantt-delay-bg, #fff4e5);
+  --_delay-border: var(--lgantt-delay-border, #e08a00);
+  --_delay-fg: var(--lgantt-delay-fg, #8a4b00);
+  --_alert: var(--lgantt-alert, var(--_delay-fg));
+  --_today: var(--lgantt-today, #d32f2f);
+  --_event: var(--lgantt-event, var(--_today));
+  --_dep: var(--lgantt-dependency, #52606d);
+  --_crit-bg: var(--lgantt-critical-bg, #fdecea);
+  --_crit-fg: var(--lgantt-critical-fg, #b71c1c);
+  --_tooltip-bg: var(--lgantt-tooltip-bg, #1f2933);
+  --_tooltip-fg: var(--lgantt-tooltip-fg, #ffffff);
+  --_selected-bg: var(--lgantt-selected-bg, #e8f0fe);
+  --_selected-border: var(--lgantt-selected-border, var(--_running));
+  --_focus: var(--lgantt-focus, var(--_running));
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color-scheme: var(--lgantt-color-scheme, normal);
+  font-family: var(--_font);
+  font-size: var(--_font-size);
+  color: var(--_fg);
+  background: var(--_surface);
+  border: 1px solid var(--_line);
+  border-radius: var(--_radius);
+
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--_line);
+  }
+
+  &__btn-group {
+    display: inline-flex;
+    .lgantt__btn:not(:first-child) { margin-left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+    .lgantt__btn:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  }
+  &__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--_line);
+    border-radius: var(--_radius);
+    background: var(--_surface);
+    color: var(--_fg);
+    font: inherit;
+    font-size: 13px;
+    line-height: 20px;
+    cursor: pointer;
+    &:hover:not(:disabled) { background: var(--_head); }
+    &:focus-visible { position: relative; outline: 2px solid var(--_focus); outline-offset: 1px; }
+    &:disabled { opacity: 0.5; cursor: default; }
+    &--active,
+    &--active:hover:not(:disabled) {
+      position: relative;
+      border-color: var(--_running);
+      background: var(--_running);
+      color: var(--_on-accent);
+    }
+  }
+
+  &__icon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    &--warn { color: var(--_delay-border); }
+  }
+  &__icon-mark { fill: none; stroke: var(--_on-accent); stroke-width: 1.5; stroke-linecap: round; }
+
+  &__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    position: relative;
+    &:focus-visible { outline: 2px solid var(--_focus); outline-offset: -2px; }
+  }
+
+  &__inner {
+    position: relative;
+    min-width: max-content;
+    background: var(--_surface);
+  }
+
+  // Fondo a todo el alto del cuerpo: no laborables sombreados y separador de semana.
+  &__bg {
+    position: absolute;
+    bottom: 0;
+    z-index: 0;
+    display: flex;
+    width: var(--lgantt-tlw);
+    pointer-events: none;
+  }
+  &__bg-day {
+    flex: 0 0 var(--lgantt-dw);
+    &--nw { background: var(--_nonwork); }
+    &--week { box-shadow: inset 1px 0 0 var(--_week-line); }
+  }
+
+  &__row {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: var(--lgantt-left) var(--lgantt-tlw);
+    height: 52px;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--_row-line);
+    &--head {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      border-bottom-color: var(--_line);
+      background: var(--_head);
+    }
+  }
+
+  &__cell {
+    position: sticky;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px 15px 0 16px;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 1px solid var(--_line);
+    background: var(--_surface);
+  }
+  &__c1 { left: 0; }
+  &__row--head &__c1 {
+    justify-content: center;
+    padding-top: 0;
+    font-size: 12px;
+    font-weight: 700;
+    background: var(--_head);
+  }
+  &__row--op &__c1 { padding-left: 40px; background: var(--_alt); }
+
+  // Fila seleccionada: celda resaltada con borde izquierdo y línea temporal tintada.
+  &__row:not(.lgantt__row--head) { cursor: pointer; outline: 0; }
+  &__row:not(.lgantt__row--head) &__c1:focus-visible { outline: 2px solid var(--_selected-border); outline-offset: -2px; }
+  &__row--selected &__c1 {
+    background: var(--_selected-bg);
+    box-shadow: inset 3px 0 0 var(--_selected-border);
+  }
+  &__row--selected &__tl { background: color-mix(in srgb, var(--_selected-bg) 60%, transparent); }
+
+  &__line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+    min-width: 0;
+  }
+  &__code {
+    flex: none;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+  }
+  &__row--op &__code { font-weight: 600; }
+  &__desc {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--_subtle);
+    font-size: 11px;
+    line-height: 16px;
+    text-overflow: ellipsis;
+  }
+
+  // Etiqueta de estado: punto de color y texto; el fondo es un tinte del color del estado.
+  &__tag {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 5px;
+    height: 18px;
+    padding: 0 7px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    &--finished {
+      color: var(--lgantt-tag-finished-fg, var(--_finished));
+      background: var(--lgantt-tag-finished-bg, color-mix(in srgb, var(--_finished) 14%, var(--_surface)));
+    }
+    &--running {
+      color: var(--lgantt-tag-running-fg, var(--_running));
+      background: var(--lgantt-tag-running-bg, color-mix(in srgb, var(--_running) 14%, var(--_surface)));
+    }
+    &--notStarted {
+      color: var(--lgantt-tag-not-started-fg, var(--_muted));
+      border-color: currentColor;
+      background: var(--lgantt-tag-not-started-bg, transparent);
+    }
+    &--critical {
+      color: var(--_crit-fg);
+      background: var(--_crit-bg);
+    }
+  }
+
+  // Cabecera de escala: semanas ISO arriba y días debajo.
+  &__scale { display: flex; flex-direction: column; }
+  &__weeks {
+    display: flex;
+    height: 25px;
+    border-bottom: 1px solid var(--_week-line);
+  }
+  &__week {
+    flex: none;
+    padding: 4px 0 0 8px;
+    overflow: hidden;
+    box-sizing: border-box;
+    box-shadow: inset 1px 0 0 var(--_week-line);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 15px;
+    white-space: nowrap;
+  }
+  &__days { display: flex; height: 26px; }
+  &__day {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--lgantt-dw);
+    color: var(--_muted);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 14px;
+    white-space: nowrap;
+    &--nw { background: var(--_nonwork); color: var(--_nonwork-fg); }
+    &--week { box-shadow: inset 1px 0 0 var(--_week-line); }
+    &--today { color: var(--_on-accent); font-weight: 700; }
+  }
+  &__day-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+  }
+  &__day--today &__day-label { background: var(--_today); }
+
+  &__tl {
+    position: relative;
+    width: var(--lgantt-tlw);
+  }
+
+  &__bar {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    border-radius: var(--_bar-radius);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--_on-accent);
+    white-space: nowrap;
+    box-sizing: border-box;
+
+    &--plan {
+      top: 9px;
+      height: 6px;
+      padding: 0;
+      border: 1px dashed var(--_plan);
+      border-radius: 2px;
+      pointer-events: none;
+    }
+    &--main { cursor: pointer; z-index: 1; &:focus-visible { outline: 2px solid var(--_fg); outline-offset: 2px; } }
+    &--finished { background: var(--_finished); }
+    &--running { background: var(--_running-soft); color: var(--_fg); }
+    &--idle { background: var(--_idle); color: var(--_fg); }
+    &--delayed {
+      background: var(--_delay-bg);
+      border: 1px dashed var(--_delay-border);
+      color: var(--_delay-fg);
+    }
+    &--progress {
+      background: var(--_running);
+      z-index: 2;
+      pointer-events: none;
+    }
+  }
+  &__tl--task &__bar--main, &__tl--task &__bar--progress { top: 21px; height: 20px; }
+  &__tl--operation &__bar--main, &__tl--operation &__bar--progress { top: 23px; height: 16px; }
+
+  &__dev {
+    position: absolute;
+    top: 23px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 15px;
+    color: var(--_alert);
+    white-space: nowrap;
+  }
+
+  // Marcador circular de evento, centrado en su día y por encima de la barra principal.
+  &__event {
+    position: absolute;
+    top: 20px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 2px solid var(--_surface);
+    border-radius: 50%;
+    background: var(--_event);
+    color: var(--_on-accent);
+    cursor: pointer;
+    &:focus-visible { outline: 2px solid var(--_fg); outline-offset: 1px; }
+    // Resaltado del marcador enfocado con `focusEvent()` desde fuera del diagrama.
+    &--focused {
+      z-index: 4;
+      outline: 2px solid var(--_fg);
+      outline-offset: 2px;
+      animation: lgantt-event-pulse 0.6s ease-out 2;
+    }
+  }
+  &__tl--operation &__event { top: 21px; }
+  &__event-icon { font-size: 12px; line-height: 1; }
+
+  &__today {
+    position: absolute;
+    top: 52px;
+    bottom: 0;
+    width: 2px;
+    background: var(--_today);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  &__deps {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    pointer-events: none;
+    overflow: visible;
+    path { fill: none; stroke: var(--_dep); stroke-width: 1.25; }
+    polygon { fill: var(--_dep); }
+  }
+
+  &__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--_line);
+    font-size: 12px;
+    color: var(--_muted);
+    span { display: inline-flex; align-items: center; gap: 6px; }
+  }
+  &__sw {
+    display: inline-block;
+    width: 22px;
+    height: 10px;
+    border-radius: 3px;
+    box-sizing: border-box;
+    &--plan { height: 6px; border: 1px dashed var(--_plan); border-radius: 2px; }
+    &--finished { background: var(--_finished); }
+    &--running { background: var(--_running); }
+    &--delayed { background: var(--_delay-bg); border: 1px dashed var(--_delay-border); }
+    &--dep { height: 0; border-radius: 0; border-top: 1.5px solid var(--_dep); }
+  }
+
+  &__tooltip {
+    position: fixed;
+    z-index: 1080;
+    transform: translate(-50%, calc(-100% - 8px));
+    max-width: 320px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: var(--_tooltip-bg);
+    color: var(--_tooltip-fg);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 15px;
+    pointer-events: none;
+
+    // Flecha centrada bajo el tooltip, apuntando a la barra.
+    &::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 4.5px solid transparent;
+      border-top-color: var(--_tooltip-bg);
+      border-bottom: 0;
+    }
+  }
+  &__tooltip-title { font-weight: 700; }
+}
+
+@keyframes lgantt-event-pulse {
+  50% { transform: scale(1.3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lgantt__event--focused { animation: none; }
+}
